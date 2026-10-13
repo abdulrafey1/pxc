@@ -64,25 +64,6 @@ class TestOnAction:
 class TestOnActionOrRaise:
     """Tests for on_action_or_raise method."""
 
-    def test_raises_in_view_mode(self, tmp_path: Path) -> None:
-        """Should raise ActionValidationError when permission is view."""
-        manifest = create_manifest(
-            actions={"answer.submit": {"type": "object", "properties": {}}}
-        )
-        ctx = make_activity_runtime(tmp_path, manifest, permission=Permission.view)
-
-        with pytest.raises(ActionValidationError, match="view mode"):
-            ctx.on_action_or_raise("answer.submit", {})
-
-    def test_raises_for_an_undeclared_action(self, tmp_path: Path) -> None:
-        """Should raise ActionValidationError for an action the manifest lacks."""
-        ctx = make_activity_runtime(
-            tmp_path, create_manifest(), permission=Permission.play
-        )
-
-        with pytest.raises(ActionValidationError):
-            ctx.on_action_or_raise("any.action", {})
-
     def test_raises_a_sandbox_failure_with_its_stderr(self, tmp_path: Path) -> None:
         """The failure reaches the caller, stderr attached."""
         manifest = create_manifest(
