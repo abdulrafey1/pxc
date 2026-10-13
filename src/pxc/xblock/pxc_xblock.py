@@ -18,7 +18,6 @@ from xblock.fields import Scope, String
 from xblock.validation import Validation
 
 from pxc.lib.actions import ActionValidationError
-from pxc.lib.sandbox import SandboxRuntimeError
 from pxc.lib.capabilities import CapabilityError
 from pxc.lib.permission import Permission
 from pxc.lib.runtime import AssetAccessError, SandboxContext
@@ -271,8 +270,6 @@ class PxcXBlock(XBlock):  # type: ignore[misc]
             runtime.on_action(name, value)
         except ActionValidationError as e:
             return Response(str(e), status=400)
-        except SandboxRuntimeError:
-            logger.warning("Sandbox failed on action %s", name)
 
         # Retention sweep: drop pending events that are too old to be useful.
         PendingEvent.objects.filter(

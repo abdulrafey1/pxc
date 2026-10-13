@@ -388,7 +388,9 @@ class ActivityRuntime:
         state: dict[str, FieldType] = json.loads(result)
         return state
 
-    def on_action(self, action_name: str, action_value: Any) -> None:
+    def on_action(
+        self, action_name: str, action_value: Any, *, raise_errors: bool = False
+    ) -> None:
         """
         Call the sandbox on-action callback.
 
@@ -396,8 +398,11 @@ class ActivityRuntime:
         with the current identifiers (user_id, course_id, activity_id),
         and the current permission level.
 
-        Raise ActionValidationError if the action is not valid, and SandboxRuntimeError if
-        the sandbox fails; its ``stderr`` holds what the sandbox wrote.
+        Raise ActionValidationError if the action is not valid.
+
+        By default a sandbox failure is logged and swallowed. With ``raise_errors=True`` the
+        SandboxRuntimeError propagates, and its ``stderr`` holds what the sandbox wrote, so a
+        host can report the failure to its user.
         """
         if self._permission == Permission.view:
             raise ActionValidationError("Actions are not allowed in view mode")
@@ -426,7 +431,8 @@ class ActivityRuntime:
                 )
             except SandboxRuntimeError as e:
                 logger.exception(e)
-                raise
+                if raise_errors:
+                    raise
 
     def send_event(
         self, name: str, value: str, context: SandboxContext | None, permission: str

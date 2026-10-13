@@ -46,8 +46,20 @@ class TestOnAction:
         ctx = make_activity_runtime(tmp_path, manifest, permission=Permission.play)
         ctx.on_action("answer.submit", {})
 
-    def test_propagates_a_sandbox_failure_with_its_stderr(self, tmp_path: Path) -> None:
-        """A failing sandbox call reaches the caller instead of being logged and dropped."""
+    def test_swallows_a_sandbox_failure_by_default(self, tmp_path: Path) -> None:
+        """A failing sandbox call is logged and does not reach the caller."""
+        manifest = create_manifest(
+            actions={"answer.submit": {"type": "object", "properties": {}}}
+        )
+        ctx = make_activity_runtime(tmp_path, manifest, permission=Permission.play)
+        ctx.sandbox = FailingSandbox(tmp_path / "sandbox.wasm", {})
+
+        ctx.on_action("answer.submit", {})
+
+    def test_raises_a_sandbox_failure_with_its_stderr_on_request(
+        self, tmp_path: Path
+    ) -> None:
+        """With raise_errors=True the failure reaches the caller, stderr attached."""
         manifest = create_manifest(
             actions={"answer.submit": {"type": "object", "properties": {}}}
         )
@@ -55,6 +67,6 @@ class TestOnAction:
         ctx.sandbox = FailingSandbox(tmp_path / "sandbox.wasm", {})
 
         with pytest.raises(SandboxRuntimeError) as raised:
-            ctx.on_action("answer.submit", {})
+            ctx.on_action("answer.submit", {}, raise_errors=True)
 
         assert raised.value.stderr == "boom from onAction"

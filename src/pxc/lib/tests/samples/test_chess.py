@@ -3,10 +3,7 @@
 import json
 from typing import Any
 
-import pytest
-
 from pxc.lib.permission import Permission
-from pxc.lib.sandbox import SandboxRuntimeError
 from pxc.lib.tests.samples.conftest import make_runtime
 
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -121,8 +118,7 @@ def test_wrong_turn_rejected() -> None:
 def test_illegal_move_rejected() -> None:
     rt = _setup_game()
     rt.user_id = "alice"
-    with pytest.raises(SandboxRuntimeError):
-        rt.on_action("game.move", {"from": "e2", "to": "e5"})
+    rt.on_action("game.move", {"from": "e2", "to": "e5"})
     state = rt.get_state()
     assert state["fen"] == START_FEN
 

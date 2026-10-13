@@ -22,7 +22,6 @@ from fastapi.templating import Jinja2Templates
 from pxc.lib.capabilities import CapabilityError
 from pxc.lib.runtime import ActivityRuntime, AssetAccessError, SandboxContext
 from pxc.lib.actions import ActionValidationError
-from pxc.lib.sandbox import SandboxRuntimeError
 from pxc.lib.event_bus import EventBus
 from pxc.lib.field_store import FieldStore
 from pxc.lib.file_storage import FileStorageError, LocalFileStorage
@@ -319,8 +318,6 @@ async def send_action(
         context.on_action(action_name, action_value)
     except ActionValidationError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    except SandboxRuntimeError:
-        logger.warning("Sandbox failed on action %s", action_name)
 
     # Publish events via the event bus (no longer returned in response)
     events = context.clear_pending_events()
@@ -359,8 +356,6 @@ async def activity_ws(websocket: WebSocket, activity_type: str) -> None:
         except ActionValidationError as e:
             logger.warning("WS action validation error: %s", e)
             continue
-        except SandboxRuntimeError:
-            logger.warning("Sandbox failed on action %s", action_name)
 
         events = context.clear_pending_events()
         await event_bus.publish(activity_type, events)
