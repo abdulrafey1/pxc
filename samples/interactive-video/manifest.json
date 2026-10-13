@@ -119,6 +119,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "correct_answers": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
           }
         }
       }
