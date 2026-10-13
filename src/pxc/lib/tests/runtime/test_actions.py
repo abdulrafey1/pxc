@@ -46,7 +46,9 @@ class TestOnAction:
         ctx = make_activity_runtime(tmp_path, manifest, permission=Permission.play)
         ctx.on_action("answer.submit", {})
 
-    def test_swallows_a_sandbox_failure_by_default(self, tmp_path: Path) -> None:
+    def test_swallows_and_logs_a_sandbox_failure(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """A failing sandbox call is logged and does not reach the caller."""
         manifest = create_manifest(
             actions={"answer.submit": {"type": "object", "properties": {}}}
@@ -56,10 +58,33 @@ class TestOnAction:
 
         ctx.on_action("answer.submit", {})
 
-    def test_raises_a_sandbox_failure_with_its_stderr_on_request(
-        self, tmp_path: Path
-    ) -> None:
-        """With raise_errors=True the failure reaches the caller, stderr attached."""
+        assert "onAction threw" in caplog.text
+
+
+class TestOnActionOrRaise:
+    """Tests for on_action_or_raise method."""
+
+    def test_raises_in_view_mode(self, tmp_path: Path) -> None:
+        """Should raise ActionValidationError when permission is view."""
+        manifest = create_manifest(
+            actions={"answer.submit": {"type": "object", "properties": {}}}
+        )
+        ctx = make_activity_runtime(tmp_path, manifest, permission=Permission.view)
+
+        with pytest.raises(ActionValidationError, match="view mode"):
+            ctx.on_action_or_raise("answer.submit", {})
+
+    def test_raises_for_an_undeclared_action(self, tmp_path: Path) -> None:
+        """Should raise ActionValidationError for an action the manifest lacks."""
+        ctx = make_activity_runtime(
+            tmp_path, create_manifest(), permission=Permission.play
+        )
+
+        with pytest.raises(ActionValidationError):
+            ctx.on_action_or_raise("any.action", {})
+
+    def test_raises_a_sandbox_failure_with_its_stderr(self, tmp_path: Path) -> None:
+        """The failure reaches the caller, stderr attached."""
         manifest = create_manifest(
             actions={"answer.submit": {"type": "object", "properties": {}}}
         )
@@ -67,6 +92,6 @@ class TestOnAction:
         ctx.sandbox = FailingSandbox(tmp_path / "sandbox.wasm", {})
 
         with pytest.raises(SandboxRuntimeError) as raised:
-            ctx.on_action("answer.submit", {}, raise_errors=True)
+            ctx.on_action_or_raise("answer.submit", {})
 
         assert raised.value.stderr == "boom from onAction"

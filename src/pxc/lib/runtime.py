@@ -388,9 +388,7 @@ class ActivityRuntime:
         state: dict[str, FieldType] = json.loads(result)
         return state
 
-    def on_action(
-        self, action_name: str, action_value: Any, *, raise_errors: bool = False
-    ) -> None:
+    def on_action_or_raise(self, action_name: str, action_value: Any) -> None:
         """
         Call the sandbox on-action callback.
 
@@ -398,41 +396,50 @@ class ActivityRuntime:
         with the current identifiers (user_id, course_id, activity_id),
         and the current permission level.
 
-        Raise ActionValidationError if the action is not valid.
-
-        By default a sandbox failure is logged and swallowed. With ``raise_errors=True`` the
-        SandboxRuntimeError propagates, and its ``stderr`` holds what the sandbox wrote, so a
-        host can report the failure to its user.
+        Raise ActionValidationError if the action is not valid and SandboxRuntimeError if
+        the sandbox fails, with the error's ``stderr`` holding what the sandbox wrote. Hosts
+        that report failures to their users call it.
         """
         if self._permission == Permission.view:
             raise ActionValidationError("Actions are not allowed in view mode")
         self.action_checker.validate(action_name, action_value)
         if self.sandbox is not None:
-            try:
-                time_start = time()
-                self.sandbox.call_function(
-                    "on-action",
-                    action_name,
-                    json.dumps(action_value),
-                    SandboxContext(
-                        {
-                            "activity-id": self._activity_id,
-                            "course-id": self._course_id,
-                            "user-id": self._user_id,
-                        }
-                    ),
-                    self._permission.value,
-                )
-                time_end = time()
-                logger.info(
-                    "Activity ID=%s call to 'on-action' took %d ms",
-                    self.activity_id,
-                    (time_end - time_start) * 1000,
-                )
-            except SandboxRuntimeError as e:
-                logger.exception(e)
-                if raise_errors:
-                    raise
+            time_start = time()
+            self.sandbox.call_function(
+                "on-action",
+                action_name,
+                json.dumps(action_value),
+                SandboxContext(
+                    {
+                        "activity-id": self._activity_id,
+                        "course-id": self._course_id,
+                        "user-id": self._user_id,
+                    }
+                ),
+                self._permission.value,
+            )
+            time_end = time()
+            logger.info(
+                "Activity ID=%s call to 'on-action' took %d ms",
+                self.activity_id,
+                (time_end - time_start) * 1000,
+            )
+
+    def on_action(self, action_name: str, action_value: Any) -> None:
+        """
+        Call the sandbox on-action callback.
+
+        The sandbox receives the action name, the action value, a context dict
+        with the current identifiers (user_id, course_id, activity_id),
+        and the current permission level.
+
+        Raise ActionValidationError if the action is not valid. A sandbox failure is
+        logged and swallowed.
+        """
+        try:
+            self.on_action_or_raise(action_name, action_value)
+        except SandboxRuntimeError as e:
+            logger.exception(e)
 
     def send_event(
         self, name: str, value: str, context: SandboxContext | None, permission: str
