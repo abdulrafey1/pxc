@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.templating import Jinja2Templates
 
 from pxc.lib.actions import ActionValidationError
+from pxc.lib.sandbox import SandboxRuntimeError
 from pxc.lib.event_bus import EventBus
 from pxc.lib.permission import Permission
 from pxc.lib.runtime import AssetAccessError
@@ -228,6 +229,8 @@ async def lti_send_action(
         ctx.on_action(action_name, action_value)
     except ActionValidationError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    except SandboxRuntimeError:
+        logger.warning("Sandbox failed on action %s", action_name)
     events = ctx.clear_pending_events()
     await event_bus.publish(ctx.activity_id, events)
     return JSONResponse(content={})
@@ -259,6 +262,8 @@ async def lti_activity_ws(websocket: WebSocket, token: str) -> None:
         except ActionValidationError as e:
             logger.warning("WS action validation error: %s", e)
             continue
+        except SandboxRuntimeError:
+            logger.warning("Sandbox failed on action %s", action_name)
         events = ctx.clear_pending_events()
         await event_bus.publish(ctx.activity_id, events)
 

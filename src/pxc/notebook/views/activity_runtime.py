@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from sqlmodel import Session
 
 from pxc.lib.actions import ActionValidationError
+from pxc.lib.sandbox import SandboxRuntimeError
 from pxc.lib.capabilities import CapabilityError
 from pxc.lib.event_bus import EventBus
 from pxc.lib.file_storage import FileStorageError
@@ -333,6 +334,8 @@ async def activity_actions(
         ctx.on_action(action.name, action.value)
     except ActionValidationError as e:
         raise HTTPException(status_code=400, detail=f"Invalid action: {e}") from e
+    except SandboxRuntimeError:
+        logger.warning("Sandbox failed on action %s", action.name)
 
     events = ctx.clear_pending_events()
     await event_bus.publish(info.activity_type, events)
@@ -392,6 +395,8 @@ async def activity_ws(
             # TODO should we return an error to the frontend?
             logger.warning("WS action validation error: %s", e)
             continue
+        except SandboxRuntimeError:
+            logger.warning("Sandbox failed on action %s", action_name)
 
         events = ctx.clear_pending_events()
         await event_bus.publish(info.activity_type, events)

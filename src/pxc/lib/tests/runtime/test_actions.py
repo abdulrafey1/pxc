@@ -1,11 +1,20 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from pxc.lib.actions import ActionValidationError
 from pxc.lib.permission import Permission
+from pxc.lib.sandbox import SandboxExecutor, SandboxRuntimeError
 
 from .utils import create_manifest, make_activity_runtime
+
+
+class FailingSandbox(SandboxExecutor):
+    """A sandbox whose every call fails the way a throwing onAction does."""
+
+    def call_function(self, function_name: str, *args: Any) -> bytes:
+        raise SandboxRuntimeError("onAction threw", "boom from onAction")
 
 
 class TestOnAction:
@@ -36,3 +45,16 @@ class TestOnAction:
         )
         ctx = make_activity_runtime(tmp_path, manifest, permission=Permission.play)
         ctx.on_action("answer.submit", {})
+
+    def test_propagates_a_sandbox_failure_with_its_stderr(self, tmp_path: Path) -> None:
+        """A failing sandbox call reaches the caller instead of being logged and dropped."""
+        manifest = create_manifest(
+            actions={"answer.submit": {"type": "object", "properties": {}}}
+        )
+        ctx = make_activity_runtime(tmp_path, manifest, permission=Permission.play)
+        ctx.sandbox = FailingSandbox(tmp_path / "sandbox.wasm", {})
+
+        with pytest.raises(SandboxRuntimeError) as raised:
+            ctx.on_action("answer.submit", {})
+
+        assert raised.value.stderr == "boom from onAction"

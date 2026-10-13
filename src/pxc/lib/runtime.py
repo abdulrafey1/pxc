@@ -396,7 +396,8 @@ class ActivityRuntime:
         with the current identifiers (user_id, course_id, activity_id),
         and the current permission level.
 
-        Raise ActionValidationError if action is not valid.
+        Raise ActionValidationError if the action is not valid, and SandboxRuntimeError if
+        the sandbox fails; its ``stderr`` holds what the sandbox wrote.
         """
         if self._permission == Permission.view:
             raise ActionValidationError("Actions are not allowed in view mode")
@@ -424,8 +425,8 @@ class ActivityRuntime:
                     (time_end - time_start) * 1000,
                 )
             except SandboxRuntimeError as e:
-                # TODO It's OK to ignore on-action errors, but we should report errors to the frontend
                 logger.exception(e)
+                raise
 
     def send_event(
         self, name: str, value: str, context: SandboxContext | None, permission: str
