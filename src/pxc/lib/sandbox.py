@@ -14,10 +14,11 @@ class SandboxRuntimeError(RuntimeError):
     Raised whenever there is an error in a sandbox executor at runtime.
 
     ``stderr`` holds what the sandbox wrote to stderr during the failing call, or "" if nothing.
+    When it is not empty, it is also appended to the error message, so logging the error shows it.
     """
 
     def __init__(self, message: str, stderr: str = "") -> None:
-        super().__init__(message)
+        super().__init__(f"{message}\nSandbox stderr:\n{stderr}" if stderr else message)
         self.stderr = stderr
 
 
