@@ -11,7 +11,13 @@ logger = logging.getLogger(__file__)
 class SandboxRuntimeError(RuntimeError):
     """
     Raised whenever there is an error in a sandbox executor at runtime.
+
+    ``stderr`` holds what the sandbox wrote to stderr during the failing call, or "" if nothing.
     """
+
+    def __init__(self, message: str, stderr: str = "") -> None:
+        super().__init__(message)
+        self.stderr = stderr
 
 
 class ForbiddenImportError(ValueError):
@@ -70,17 +76,19 @@ class SandboxComponentExecutor(SandboxExecutor):
         self._host_functions = host_functions
 
     def _create_store_instance(
-        self,
+        self, stderr: bytearray
     ) -> tuple[wasmtime.Store, wasmtime.component.Instance]:
         """
         Create a wasmtime store, engine with wasi features, component, etc.
+
+        What the sandbox writes to stderr is appended to ``stderr`` and not forwarded anywhere.
         """
         engine = create_engine()
 
         # Create WASI config
         wasi_config = wasmtime.WasiConfig()
         wasi_config.inherit_stdout()
-        wasi_config.inherit_stderr()
+        wasi_config.stderr_custom = stderr.extend
 
         # Create store
         store = wasmtime.Store(engine)
@@ -109,27 +117,34 @@ class SandboxComponentExecutor(SandboxExecutor):
     def call_function(self, function_name: str, *args: Any) -> bytes:
         """
         Call an exported function on the WASM component.
+
+        Every SandboxRuntimeError raised here carries what the sandbox wrote to stderr.
         """
+        stderr = bytearray()
         try:
-            store, instance = self._create_store_instance()
+            store, instance = self._create_store_instance(stderr)
         except wasmtime.WasmtimeError as e:
             raise SandboxRuntimeError(
-                f"Component {self._plugin_path}: failed to create instance"
+                f"Component {self._plugin_path}: failed to create instance",
+                stderr.decode("utf-8", "replace"),
             ) from e
         func = instance.get_func(store, function_name)
         if func is None:
             raise SandboxRuntimeError(
-                f"Component {self._plugin_path}: export '{function_name}' not found"
+                f"Component {self._plugin_path}: export '{function_name}' not found",
+                stderr.decode("utf-8", "replace"),
             )
         try:
             result = call_sandbox_function(store, func, *args)
         except wasmtime.WasmtimeError as e:
             raise SandboxRuntimeError(
-                f"Component {self._plugin_path}: error running '{function_name}' with arguments: {args}"
+                f"Component {self._plugin_path}: error running '{function_name}' with arguments: {args}",
+                stderr.decode("utf-8", "replace"),
             ) from e
         except Exception as e:
             raise SandboxRuntimeError(
-                f"Component {self._plugin_path}: error running '{function_name}'"
+                f"Component {self._plugin_path}: error running '{function_name}'",
+                stderr.decode("utf-8", "replace"),
             ) from e
         return result.encode("utf-8") if isinstance(result, str) else b""
 
