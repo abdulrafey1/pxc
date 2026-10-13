@@ -8,9 +8,8 @@ export function onAction(name, data, context, permission) {
     }
     setField("video_id", JSON.stringify(value.video_id));
     sendEvent("fields.change.video_id", JSON.stringify(value.video_id), null, "play");
-    const startTime = value.start_time ?? 0;
-    setField("start_time", JSON.stringify(startTime));
-    sendEvent("fields.change.start_time", JSON.stringify(startTime), null, "play");
+    setField("start_time", JSON.stringify(value.start_time));
+    sendEvent("fields.change.start_time", JSON.stringify(value.start_time), null, "play");
   }
   return "";
 }
